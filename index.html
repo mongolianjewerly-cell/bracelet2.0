@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Конструктор браслетов</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { background-color: #f4f5f7; color: #1c1c1e; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    /* Верхняя панель со статистикой */
+    .header-card {
+      margin: 12px 16px 4px 16px;
+      padding: 14px 20px;
+      background: #ffffff;
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .stat-item { text-align: center; }
+    .stat-label { font-size: 11px; color: #8e8e93; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 18px; font-weight: 700; color: #000; margin-top: 2px; }
+    .stat-value span { color: #007aff; }
+
+    /* Холст браслета */
+    .canvas-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      position: relative;
+    }
+    canvas {
+      border-radius: 24px;
+      background: #ffffff;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+      max-width: 100%;
+    }
+
+    /* Нижняя панель выбора компонентов */
+    .controls-panel {
+      background: #ffffff;
+      border-top-left-radius: 28px;
+      border-top-right-radius: 28px;
+      box-shadow: 0 -10px 30px rgba(0,0,0,0.04);
+      padding: 16px 16px 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Вкладки категорий */
+    .tabs { display: flex; gap: 8px; background: #f0f0f2; padding: 4px; border-radius: 14px; }
+    .tab-btn {
+      flex: 1;
+      padding: 8px 0;
+      border: none;
+      background: transparent;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tab-btn.active { background: #ffffff; color: #000; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+    /* Горизонтальный список бусин */
+    .beads-scroll { display: flex; gap: 12px; overflow-x: auto; padding: 6px 2px 10px 2px; scrollbar-width: none; }
+    .beads-scroll::-webkit-scrollbar { display: none; }
+
+    .bead-card {
+      min-width: 72px;
+      background: #fafafa;
+      border: 1px solid #f0f0f0;
+      border-radius: 16px;
+      padding: 10px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .bead-card:active { transform: scale(0.95); }
+    .bead-preview { width: 34px; height: 34px; border-radius: 50%; box-shadow: inset -3px -3px 6px rgba(0,0,0,0.3), 2px 4px 8px rgba(0,0,0,0.15); }
+    .bead-name { font-size: 11px; font-weight: 600; color: #333; text-align: center; }
+    .bead-price { font-size: 11px; font-weight: 700; color: #007aff; }
+
+    /* Кнопки действий */
+    .action-btns { display: flex; gap: 10px; margin-top: 4px; }
+    .btn {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 16px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:active { opacity: 0.8; }
+    .btn-reset { background: #f0f0f2; color: #ff3b30; flex: 0.35; }
+    .btn-submit { background: linear-gradient(135deg, #007aff, #0051a8); color: #fff; box-shadow: 0 4px 14px rgba(0, 122, 255, 0.3); }
+  </style>
+</head>
+<body>
+
+  <div class="header-card">
+    <div class="stat-item">
+      <div class="stat-label">Размер запястья</div>
+      <div class="stat-value"><span id="wrist-size">16.0</span> см</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Деталей</div>
+      <div class="stat-value" id="beads-count">0 шт</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Стоимость</div>
+      <div class="stat-value"><span id="total-price">0</span> ₽</div>
+    </div>
+  </div>
+
+  <div class="canvas-wrapper">
+    <canvas id="braceletCanvas" width="340" height="340"></canvas>
+  </div>
+
+  <div class="controls-panel">
+    <div class="tabs">
+      <button class="tab-btn active">Натуральные камни</button>
+      <button class="tab-btn">Серебро и Декор</button>
+    </div>
+
+    <div class="beads-scroll" id="beads-catalog"></div>
+
+    <div class="action-btns">
+      <button class="btn btn-reset" onclick="clearBracelet()">Сброс</button>
+      <button class="btn btn-submit" onclick="sendOrder()">Оформить заказ</button>
+    </div>
+  </div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.expand();
+      tg.setHeaderColor('#f4f5f7');
+    }
+
+    // Каталог реалистичных камней с цветовыми градиентами
+    const CATALOG = [
+      { id: 1, name: 'Малахит', size: 8, price: 250, color1: '#2e8b57', color2: '#0b3d1b', highlight: '#73e6a0' },
+      { id: 2, name: 'Бирюза', size: 8, price: 220, color1: '#40e0d0', color2: '#008b8b', highlight: '#a6ffff' },
+      { id: 3, name: 'Черный Агат', size: 8, price: 180, color1: '#3a3a3c', color2: '#111112', highlight: '#8e8e93' },
+      { id: 4, name: 'Розовый Кварц', size: 8, price: 200, color1: '#ffb6c1', color2: '#c76b7b', highlight: '#ffffff' },
+      { id: 5, name: 'Сердолик', size: 8, price: 190, color1: '#d2691e', color2: '#5c1d00', highlight: '#ff9e66' },
+      { id: 6, name: 'Лазурит', size: 8, price: 240, color1: '#1e90ff', color2: '#00008b', highlight: '#70b5ff' }
+    ];
+
+    let selectedBeads = [];
+    const canvas = document.getElementById('braceletCanvas');
+    const ctx = canvas.getContext('2d');
+    const center = { x: 170, y: 170 };
+    const radius = 105;
+
+    // Инициализация каталога
+    function renderCatalog() {
+      const container = document.getElementById('beads-catalog');
+      container.innerHTML = '';
+      CATALOG.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'bead-card';
+        card.innerHTML = `
+          <div class="bead-preview" style="background: radial-gradient(circle at 35% 35%, ${item.highlight}, ${item.color1}, ${item.color2});"></div>
+          <div class="bead-name">${item.name}</div>
+          <div class="bead-price">${item.price} ₽</div>
+        `;
+        card.onclick = () => {
+          selectedBeads.push(item);
+          renderBracelet();
+        };
+        container.appendChild(card);
+      });
+    }
+
+    // Отрисовка 3D-бусины на холсте
+    function draw3DBead(x, y, beadRadius, bead) {
+      // 1. Мягкая тень под бусиной
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x + 2, y + 4, beadRadius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+      ctx.filter = 'blur(3px)';
+      ctx.fill();
+      ctx.restore();
+
+      // 2. Основное тело сферы с радиальным градиентом
+      ctx.beginPath();
+      ctx.arc(x, y, beadRadius, 0, Math.PI * 2);
+      const grad = ctx.createRadialGradient(
+        x - beadRadius * 0.3, y - beadRadius * 0.3, beadRadius * 0.1,
+        x, y, beadRadius
+      );
+      grad.addColorStop(0, bead.highlight || '#ffffff');
+      grad.addColorStop(0.3, bead.color1);
+      grad.addColorStop(1, bead.color2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // 3. Яркий глянцевый блик
+      ctx.beginPath();
+      ctx.arc(x - beadRadius * 0.35, y - beadRadius * 0.35, beadRadius * 0.25, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.fill();
+    }
+
+    // Отрисовка всего браслета
+    function renderBracelet() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Отрисовка нити/основы
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = '#d1d1d6';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const total = selectedBeads.length;
+      let totalPrice = 0;
+      let totalLengthMm = 0;
+
+      selectedBeads.forEach((bead, i) => {
+        totalPrice += bead.price;
+        totalLengthMm += bead.size;
+
+        const angle = (i / total) * (Math.PI * 2) - (Math.PI / 2);
+        const x = center.x + radius * Math.cos(angle);
+        const y = center.y + radius * Math.sin(angle);
+
+        draw3DBead(x, y, 13, bead);
+      });
+
+      // Обновление метрик
+      document.getElementById('total-price').innerText = totalPrice;
+      document.getElementById('beads-count').innerText = total + ' шт';
+      document.getElementById('wrist-size').innerText = (totalLengthMm / 10).toFixed(1);
+    }
+
+    function clearBracelet() {
+      selectedBeads = [];
+      renderBracelet();
+    }
+
+    function sendOrder() {
+      if (selectedBeads.length === 0) {
+        alert('Выберите хотя бы одну бусину!');
+        return;
+      }
+      const order = {
+        totalPrice: document.getElementById('total-price').innerText,
+        beadsCount: selectedBeads.length,
+        items: selectedBeads.map(b => b.name)
+      };
+      if (tg && tg.sendData) {
+        tg.sendData(JSON.stringify(order));
+      } else {
+        alert('Заказ сформирован на сумму ' + order.totalPrice + ' ₽');
+      }
+    }
+
+    renderCatalog();
+    renderBracelet();
+  </script>
+</body>
+</html>
